@@ -30,68 +30,115 @@ int defineIssueInstruction(Operation op, int dest, int src1, int src2, int imm)
 {
     for (int i = 0; i < NUM_RESERVATION_STATIONS; i++)
     {
-        // Verifica se a estação de reserva está livre.
+        // Verifica se a estação de reserva está livre
         if (!reservation_stations[i].busy)
         {
-            // Define a operação.
             reservation_stations[i].op = op;
-            // Define o registrador de destino.
             reservation_stations[i].dest = dest;
-            // Define o primeiro registrador de origem.
-            reservation_stations[i].src1 = src1;
-            // Define o segundo registrador de origem.
-            reservation_stations[i].src2 = src2;
-            // Define o valor imediato.
             reservation_stations[i].imm = imm;
-            // Marca a estação de reserva como ocupada.
             reservation_stations[i].busy = 1;
-            // Define o ciclo de execução.
-            reservation_stations[i].exec_cycle = clock_cycle + 1;
-            // Retorna o índice da estação de reserva.
-            return i;
+
+            // Dependência de registrador de origem (aguardar se necessário)
+            if (registers[src1].tag == -1)
+            {
+                reservation_stations[i].src1 = src1;
+            }
+            else
+            {
+                reservation_stations[i].src1 = -1; // Ainda aguardando valor
+            }
+
+            if (registers[src2].tag == -1)
+            {
+                reservation_stations[i].src2 = src2;
+            }
+            else
+            {
+                reservation_stations[i].src2 = -1;
+            }
+
+            // Define o tempo de execução com base na operação
+            switch (op)
+            {
+            case ADD:
+            case SUB:
+                reservation_stations[i].exec_cycle = clock_cycle + ADD_LATENCY;
+                break;
+            case LW:
+            case SW:
+                reservation_stations[i].exec_cycle = clock_cycle + LW_LATENCY;
+                break;
+            default:
+                reservation_stations[i].exec_cycle = clock_cycle + 1;
+                break;
+            }
+
+            // Marcar que o registrador de destino está esperando um resultado
+            registers[dest].tag = i;
+
+            return i; // Retorna o índice da estação de reserva usada
         }
     }
-    // Retorna -1 se não houver estações de reserva livres.
-    return -1;
+    return -1; // Não há estação de reserva disponível
 }
 
 void executeInstructions()
 {
     for (int i = 0; i < NUM_RESERVATION_STATIONS; i++)
     {
-        // Verifica se a estação de reserva está ocupada e pronta para executar.
-        if (reservation_stations[i].busy && reservation_stations[i].exec_cycle <= clock_cycle)
+        // Verifica se a estação de reserva está ocupada e se é o ciclo correto para executar
+        if (reservation_stations[i].busy && reservation_stations[i].exec_cycle == clock_cycle)
         {
-            // Obtém o valor do primeiro registrador de origem.
-            int src1_value = (registers[reservation_stations[i].src1].tag == -1) ? registers[reservation_stations[i].src1].value : 0;
-            // Obtém o valor do segundo registrador de origem.
-            int src2_value = (registers[reservation_stations[i].src2].tag == -1) ? registers[reservation_stations[i].src2].value : 0;
+            int result = 0;
+            int src1_value = (reservation_stations[i].src1 >= 0) ? registers[reservation_stations[i].src1].value : 0;
+            int src2_value = (reservation_stations[i].src2 >= 0) ? registers[reservation_stations[i].src2].value : 0;
 
+            // Executar a operação
             switch (reservation_stations[i].op)
             {
             case ADD:
-                // Executa a operação de adição.
-                registers[reservation_stations[i].dest].value = src1_value + src2_value;
+                result = src1_value + src2_value;
                 break;
             case SUB:
-                // Executa a operação de subtração.
-                registers[reservation_stations[i].dest].value = src1_value - src2_value;
+                result = src1_value - src2_value;
                 break;
             case LW:
-                // Executa a operação de leitura da memória.
-                registers[reservation_stations[i].dest].value = memory[reservation_stations[i].imm].value;
+                result = memory[reservation_stations[i].imm].value;
                 break;
             case SW:
-                // Executa a operação de escrita na memória.
                 memory[reservation_stations[i].imm].value = src1_value;
                 break;
             default:
                 break;
             }
-            // Libera a estação de reserva.
+
+            // Write-Back: Se for uma operação SW, não precisa atualizar registrador
+            if (reservation_stations[i].op != SW)
+            {
+                registers[reservation_stations[i].dest].value = result;
+                registers[reservation_stations[i].dest].tag = -1; // Registrador agora está pronto
+
+                // Propaga o resultado para outras estações que estavam esperando esse valor
+                for (int j = 0; j < NUM_RESERVATION_STATIONS; j++)
+                {
+                    if (reservation_stations[j].busy)
+                    {
+                        if (reservation_stations[j].src1 == i)
+                        {
+                            reservation_stations[j].src1 = -1;                      // Indica que o valor está pronto
+                            registers[reservation_stations[j].dest].value = result; // Propaga o valor
+                        }
+                        if (reservation_stations[j].src2 == i)
+                        {
+                            reservation_stations[j].src2 = -1;
+                            registers[reservation_stations[j].dest].value = result;
+                        }
+                    }
+                }
+            }
+
+            // Libera a estação de reserva após execução
             reservation_stations[i].busy = 0;
-            // Limpa a tag do registrador de destino.
-            registers[reservation_stations[i].dest].tag = -1;
         }
     }
 }

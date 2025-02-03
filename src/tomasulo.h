@@ -53,6 +53,12 @@ extern Register registers[NUM_REGISTERS];
 extern Memory memory[MEMORY_SIZE];
 extern int clock_cycle;
 
+// Define as latências das operações.
+#define ADD_LATENCY 2
+#define SUB_LATENCY 2
+#define LW_LATENCY 3
+#define SW_LATENCY 3
+
 void initializeStationsRegistersAndMemory();
 int defineIssueInstruction(Operation op, int dest, int src1, int src2, int imm);
 void executeInstructions();
