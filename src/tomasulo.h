@@ -32,6 +32,10 @@ typedef struct
     int imm;
     int busy;
     int exec_cycle;
+    int Vj;
+    int Vk;
+    int Qj;
+    int Qk;
 } ReservationStation;
 
 // Define a estrutura do registrador.
