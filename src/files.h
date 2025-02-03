@@ -3,7 +3,7 @@
 
 #include "tomasulo.h"
 
-Operation parse_operation(char *op);
-void read_instructions_from_file(const char *filename);
+Operation parseOperation(char *op);
+void readInstructionsFromFile(const char *filename);
 
 #endif
